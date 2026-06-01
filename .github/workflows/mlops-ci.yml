@@ -1,0 +1,43 @@
+name: MLOps MASA Pipeline CI
+
+# Le pipeline s'exécute automatiquement dès qu'on pousse du code sur la branche main
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  integration-and-testing:
+    runs-on: ubuntu-latest
+
+    steps:
+    # 1. Copier le code du dépôt GitHub sur la machine virtuelle de test
+    - name: Checkout repository code
+      uses: actions/checkout@v3
+
+    # 2. Installer Python 3.10
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    # 3. Installer les dépendances du projet
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    # 4. Exécuter automatiquement les tests unitaires développés
+    # On lui injecte des variables d'environnement factices pour que boto3 (S3) ne plante pas le test sur GitHub
+    - name: Run automated tests with Pytest
+      env:
+        AWS_ACCESS_KEY_ID: "mock_key"
+        AWS_SECRET_ACCESS_KEY: "mock_secret"
+        AWS_DEFAULT_REGION: "eu-west-3"
+        AWS_BUCKET_NAME: "mock-bucket"
+      run: |
+        pytest test_app.py
+
+    # 5. Valider que le Dockerfile se compile parfaitement sans aucune erreur de syntaxe
+    - name: Build Docker Image Validation
+      run: |
+        docker build -t masa-predict-api:latest .
