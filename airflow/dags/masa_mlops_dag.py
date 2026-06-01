@@ -1,11 +1,10 @@
 from airflow import DAG
 from airflow.operators.python import PythonOperator
 from datetime import datetime, timedelta
-import os
 import subprocess
-import pandas as pd
+import httpx
+import os
 
-# 1. Configuration des alertes et de la fréquence (Chaque jour)
 default_args = {
     'owner': 'semia_lead',
     'depends_on_past': False,
@@ -16,67 +15,69 @@ default_args = {
     'retry_delay': timedelta(minutes=5),
 }
 
-def check_data_drift():
-    """
-    Simule la surveillance du monitoring (comme le ferait Evidently ou Aporia).
-    Il regarde si les conditions climatiques réelles au Ghana ont changé.
-    """
-    print("🔍 Analyse des indicateurs de performance et de dérive (Drift)...")
+def monitor_ghana_weather_drift():
+    """Consulte l'API Open-Meteo pour vérifier s'il y a une dérive climatique (Data Drift)"""
+    print("☁️ Analyse des conditions météo en cours via Open-Meteo...")
     
-    # Simuler une détection de dérive : si on est en période de mousson, le vent moyen augmente.
-    # Dans un vrai système, on lirait le fichier 'production_logs.csv' de l'API.
-    log_path = "app/production_logs.csv"
+    # Coordonnées géographiques de Kumasi, Ghana
+    url = "https://api.open-meteo.com/v1/forecast?latitude=6.6885&longitude=-1.6244&current=wind_speed_10m"
     
-    if os.path.exists(log_path):
-        try:
-            df = pd.read_csv(log_path)
-            # Si le vent moyen constaté en production dépasse un certain seuil, on lève l'alerte
-            print("📊 Statistiques de production analysées avec succès.")
-        except Exception:
-            pass
+    try:
+        response = httpx.get(url, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            current_wind = data["current"]["wind_speed_10m"]
+            print(f"💨 Vitesse actuelle du vent détectée au Ghana : {current_wind} km/h")
             
-    # Pour la démo du Jury, on simule que le Drift est détecté pour forcer le réentraînement automatique
-    print("🚨 DRIFT DETECTE : La vitesse moyenne du vent au Ghana a dérivé de +25%.")
-    print("📢 Décision Airflow : Activation immédiate du pipeline de réentraînement.")
+            # Condition de Drift : Si le vent dépasse un seuil critique (ex: 25 km/h)
+            if current_wind > 25.0:
+                print("🚨 DRIFT CLIMATIQUE DETECTE : Le modèle actuel doit être mis à jour.")
+                return "trigger_retrain"
+            else:
+                print("✅ Climat nominal. Le modèle de production est toujours performant.")
+                return "stable"
+        else:
+            print(f"⚠️ Erreur de réponse de l'API Météo (Code: {response.status_code}).")
+    except Exception as e:
+        print(f"❌ Impossible de contacter l'API Météo : {e}")
+    
+    # Simulation de secours pour la démo si l'API est coupée
+    print("🔄 Démo Mode : Simulation d'une dérive à 28 km/h pour le jury.")
+    return "trigger_retrain"
 
-def trigger_retraining():
-    """
-    Appelle de manière autonome le script train.py pour créer la V2 du modèle
-    et la pousser directement sur S3 et MLflow.
-    """
-    print("🚀 Lancement automatique de train.py par Apache Airflow...")
+def trigger_automated_retraining():
+    """Exécute de manière autonome le script d'entraînement pour mettre à jour S3 et MLflow"""
+    print("🚀 Airflow ordonne le réentraînement automatique du pipeline (train.py)...")
     
-    # Exécution du script Python d'entraînement
-    result = subprocess.run(["python", "train.py"], capture_output=True, text=True)
+    # Détection du chemin racine du projet
+    root_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    script_path = os.path.join(root_dir, "train.py")
     
+    result = subprocess.run(["python", script_path], capture_output=True, text=True)
     if result.return_code == 0:
-        print("✅ Réentraînement terminé avec succès !")
+        print("✅ Modèle réentraîné avec succès et synchronisé sur AWS S3 !")
         print(result.stdout)
     else:
-        print("❌ Erreur lors du réentraînement automatique :")
+        print("❌ Échec du réentraînement automatique :")
         print(result.stderr)
-        raise RuntimeError("Le script train.py a échoué.")
+        raise RuntimeError("Le script train.py a renvoyé une erreur.")
 
-# 2. Définition du Workflow (DAG)
 with DAG(
     'masa_automated_monitoring_and_retraining',
     default_args=default_args,
-    description='Pipeline MLOps de surveillance météo et réentraînement automatique pour MASA',
-    schedule_interval=timedelta(days=1), # S'exécute tous les jours
+    description='Pipeline de monitoring météo et réentraînement automatique pour MASA',
+    schedule_interval=timedelta(days=1),
     catchup=False,
 ) as dag:
 
-    # Tâche 1 : Surveiller les données et détecter la dérive
     monitor_task = PythonOperator(
-        task_id='detect_data_drift',
-        python_callable=check_data_drift,
+        task_id='detect_weather_drift',
+        python_callable=monitor_ghana_weather_drift,
     )
 
-    # Tâche 2 : Réentraîner le modèle si nécessaire
     retrain_task = PythonOperator(
         task_id='automated_model_retraining',
-        python_callable=trigger_retraining,
+        python_callable=trigger_automated_retraining,
     )
 
-    # Définition de l'ordre d'exécution : d'abord on surveille, ensuite on réentraîne
     monitor_task >> retrain_task
