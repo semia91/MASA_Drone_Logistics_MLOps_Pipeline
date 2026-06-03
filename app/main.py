@@ -91,13 +91,28 @@ def predict(request: FlightRequest):
     closest_hub = min(HUBS_DRONES, key=lambda h: calculate_haversine(request.hospital_latitude, request.hospital_longitude, h["lat"], h["lon"]))
     distance = calculate_haversine(request.hospital_latitude, request.hospital_longitude, closest_hub["lat"], closest_hub["lon"])
     
-    # Inférence Machine Learning
-    preds = model.predict(np.array([[distance, request.weight_kg, request.wind_speed_kmh, request.air_temperature_c]]))
+    # -------------------------------------------------------------
+    # POST-PROCESSING ALGORITHMIQUE : LOGIQUE PHYSIQUE STRICTE (100 km/h)
+    # -------------------------------------------------------------
+    # Vitesse de croisière nominale du drone = 100 km/h
+    vitesse_reference = 100.0
+    
+    # Temps de base en minutes pour parcourir la distance à 100 km/h
+    temps_base_minutes = (distance / vitesse_reference) * 60.0
+    
+    # Ajustement réel basé sur tes lois de physique (Poids et Vent)
+    # Plus il y a de poids (charge) et de vent de face, plus le drone met du temps
+    predicted_eta = temps_base_minutes + (request.weight_kg * 1.8) + (request.wind_speed_kmh * 0.4)
+    
+    # Calcul réaliste de la consommation de batterie basé sur tes coefficients
+    predicted_battery_loss = (distance * 0.8) + (request.wind_speed_kmh * 0.5) + (request.weight_kg * 1.1)
+    # Sécurité pour ne pas dépasser des limites absurdes (bornes entre 0% et 98%)
+    predicted_battery_loss = max(min(predicted_battery_loss, 98.0), 0.0)
     
     return {
         "assigned_hub_id": closest_hub["hub_id"],
         "hub_operator": closest_hub["operator"],
         "distance_km": round(distance, 2),
-        "predicted_eta_minutes": round(float(preds[0][0]), 2),
-        "predicted_battery_loss_pct": round(float(preds[0][1]), 2)
+        "predicted_eta_minutes": round(float(predicted_eta), 2),
+        "predicted_battery_loss_pct": round(float(predicted_battery_loss), 2)
     }
