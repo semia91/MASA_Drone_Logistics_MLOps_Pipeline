@@ -1,0 +1,43 @@
+
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <title>MASA MLOps - Rapport de Monitoring</title>
+        <style>
+            body { font-family: 'Segoe UI', sans-serif; margin: 40px; background-color: #f4f6f9; color: #333; }
+            .container { background: white; padding: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); max-width: 800px; margin: auto; }
+            h1 { color: #4A154B; border-bottom: 3px solid #4A154B; padding-bottom: 10px; }
+            .status { padding: 15px; border-radius: 8px; font-weight: bold; font-size: 1.2em; margin-bottom: 20px; }
+            .alert { background-color: #fce8e6; color: #c5221f; border: 1px solid #fad2cf; }
+            .ok { background-color: #e6f4ea; color: #137333; border: 1px solid #ceead6; }
+            table { width: 100%; border-collapse: collapse; margin-top: 20px; }
+            th, td { padding: 12px; text-align: left; border-bottom: 1px solid #ddd; }
+            th { background-color: #f8f9fa; color: #5f6368; }
+            .highlight { font-weight: bold; color: #4A154B; }
+        </style>
+    </head>
+    <body>
+        <div class="container">
+            <h1>🚁 MASA Data Drift & Performance Report (Version Algorithmique)</h1>
+            <p><strong>Date de l'analyse :</strong> 2026-06-03 09:11:12</p>
+            <div class="status alert">
+                🚨 Statut Dérive Globale : OUI
+            </div>
+            <table>
+                <tr>
+                    <th>Métrique Climatique</th>
+                    <th>Moyenne Référence (Train)</th>
+                    <th>Valeur Actuelle (Production)</th>
+                    <th>Écart Relatif</th>
+                </tr>
+                <tr>
+                    <td class="highlight">Vitesse du Vent</td>
+                    <td>14.50 km/h</td>
+                    <td>8.10 km/h</td>
+                    <td style="color: red">44.1%</td>
+                </tr>
+            </table>
+        </div>
+    </body>
+    </html>
+    
